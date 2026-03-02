@@ -1,7 +1,7 @@
 "use client";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Package, TrendingUp, ShoppingCart, AlertTriangle, DollarSign, Users, RefreshCw, ArrowUp, ArrowDown } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from "recharts";
+import { Package, ShoppingCart, AlertTriangle, DollarSign, Users, ArrowUp, ArrowDown } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 const stats = [
   { title: "Today's Sales", value: "₹45,280", change: "+12.5%", trend: "up", icon: DollarSign, color: "text-green-600", bgColor: "bg-green-100" },
@@ -14,16 +14,6 @@ const lowStockItems = [
   { product: "Cotton Shirt", sku: "CS-001", stock: 8, reorderLevel: 20 },
   { product: "Silk Saree", sku: "SS-002", stock: 5, reorderLevel: 15 },
   { product: "Designer Kurti", sku: "DK-003", stock: 12, reorderLevel: 25 },
-];
-
-const salesData = [
-  { name: "Mon", sales: 4000, returns: 240 },
-  { name: "Tue", sales: 3000, returns: 139 },
-  { name: "Wed", sales: 5000, returns: 380 },
-  { name: "Thu", sales: 2780, returns: 210 },
-  { name: "Fri", sales: 4890, returns: 290 },
-  { name: "Sat", sales: 6390, returns: 430 },
-  { name: "Sun", sales: 5490, returns: 300 },
 ];
 
 const categoryData = [
