@@ -1,26 +1,31 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Plus, Edit, Trash2, UserCircle } from "lucide-react";
+import { Plus, UserCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Badge } from "../components/ui/badge";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchAllStaffs, createStaff, updateStaff, deleteStaff } from "@/redux/slices/staffSlice";
+import { CommonDataTable } from "../components/ui/common-data-table";
 
 export function Users() {
   const dispatch = useAppDispatch();
-  const { staffs, loading } = useAppSelector((state) => state.staff);
+  const { staffs, loading, pagination } = useAppSelector((state) => state.staff);
   const [isOpen, setIsOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [formData, setFormData] = useState({ fullName: "", email: "", password: "", status: "active" });
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    dispatch(fetchAllStaffs());
-  }, [dispatch]);
+    dispatch(fetchAllStaffs({ page: 1, limit: 10, search }));
+  }, [dispatch, search]);
+
+  const handlePageChange = (page: number) => {
+    dispatch(fetchAllStaffs({ page, limit: 10, search }));
+  };
 
   const handleAdd = () => {
     setEditingUser(null);
@@ -46,21 +51,38 @@ export function Users() {
         toast.success("User created!");
       }
       setIsOpen(false);
+      dispatch(fetchAllStaffs({ page: pagination?.currentPage || 1, limit: 10, search }));
     } catch (err: any) {
       toast.error(err.message || "Failed to save user");
     }
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await dispatch(deleteStaff(id)).unwrap();
-      toast.success("User deleted!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete user");
+    if (window.confirm("Are you sure you want to delete this user?")) {
+      try {
+        await dispatch(deleteStaff(id)).unwrap();
+        toast.success("User deleted!");
+        dispatch(fetchAllStaffs({ page: pagination?.currentPage || 1, limit: 10, search }));
+      } catch (err: any) {
+        toast.error(err.message || "Failed to delete user");
+      }
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  const columns = [
+    { header: "User", accessorKey: "fullName", cell: (item: any) => (
+      <div className="flex items-center space-x-3">
+        <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+          <UserCircle className="w-5 h-5 text-indigo-600" />
+        </div>
+        <span className="font-medium text-gray-900">{item.fullName}</span>
+      </div>
+    )},
+    { header: "Email", accessorKey: "email" },
+    { header: "Status", accessorKey: "status", cell: (item: any) => (
+      <Badge variant={item.status === "active" ? "default" : "secondary"}>{item.status}</Badge>
+    )},
+  ];
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
@@ -75,53 +97,16 @@ export function Users() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Users ({staffs.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">User</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Email</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Status</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {staffs.map((user: any) => (
-                  <tr key={user._id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                          <UserCircle className="w-6 h-6 text-indigo-600" />
-                        </div>
-                        <span className="font-medium text-gray-900">{user.fullName}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-gray-700">{user.email}</td>
-                    <td className="py-3 px-4">
-                      <Badge variant={user.status === "active" ? "default" : "secondary"}>{user.status}</Badge>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center space-x-2">
-                        <Button onClick={() => handleEdit(user)} variant="ghost" size="icon">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button onClick={() => handleDelete(user._id)} variant="ghost" size="icon">
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <CommonDataTable
+        columns={columns}
+        data={staffs}
+        pagination={pagination || { totalRecords: 0, currentPage: 1, totalPages: 0, limit: 10 }}
+        onPageChange={handlePageChange}
+        onSearchChange={setSearch}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        loading={loading}
+      />
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent>

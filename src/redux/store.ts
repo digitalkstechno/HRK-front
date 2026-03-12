@@ -9,6 +9,9 @@ import saleOrderReducer from './slices/saleOrderSlice';
 import purchaseOrderReducer from './slices/purchaseOrderSlice';
 import returnReducer from './slices/returnSlice';
 import sizeMasterReducer from './slices/sizeMasterSlice';
+import categoryMasterReducer from './slices/categoryMasterSlice';
+import transportMasterReducer from './slices/transportMasterSlice';
+
 
 export const store = configureStore({
   reducer: {
@@ -22,8 +25,12 @@ export const store = configureStore({
     purchaseOrder: purchaseOrderReducer,
     return: returnReducer,
     sizeMaster: sizeMasterReducer,
+    categoryMaster: categoryMasterReducer,
+    transportMaster: transportMasterReducer,
   },
 });
+
+
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

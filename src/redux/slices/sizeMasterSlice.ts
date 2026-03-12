@@ -4,6 +4,12 @@ import api from '@/lib/axios';
 interface SizeMasterState {
   sizeMasters: any[];
   currentSizeMaster: any;
+  pagination: {
+    totalRecords: number;
+    currentPage: number;
+    totalPages: number;
+    limit: number;
+  };
   loading: boolean;
   error: string | null;
 }
@@ -11,14 +17,25 @@ interface SizeMasterState {
 const initialState: SizeMasterState = {
   sizeMasters: [],
   currentSizeMaster: null,
+  pagination: {
+    totalRecords: 0,
+    currentPage: 1,
+    totalPages: 0,
+    limit: 10,
+  },
   loading: false,
   error: null,
 };
 
-export const fetchAllSizeMasters = createAsyncThunk('sizeMaster/fetchAll', async () => {
-  const response = await api.get('/sizemaster');
-  return response.data.data;
-});
+export const fetchAllSizeMasters = createAsyncThunk(
+  'sizeMaster/fetchAll',
+  async ({ page, limit, search }: { page?: number; limit?: number; search?: string } = {}) => {
+    const response = await api.get('/sizemaster', {
+      params: { page, limit, search },
+    });
+    return response.data;
+  }
+);
 
 export const fetchSizeMasterById = createAsyncThunk('sizeMaster/fetchById', async (id: string) => {
   const response = await api.get(`/sizemaster/${id}`);
@@ -51,7 +68,8 @@ const sizeMasterSlice = createSlice({
       })
       .addCase(fetchAllSizeMasters.fulfilled, (state, action) => {
         state.loading = false;
-        state.sizeMasters = action.payload;
+        state.sizeMasters = action.payload.data;
+        state.pagination = action.payload.pagination;
       })
       .addCase(fetchAllSizeMasters.rejected, (state, action) => {
         state.loading = false;
@@ -61,7 +79,7 @@ const sizeMasterSlice = createSlice({
         state.currentSizeMaster = action.payload;
       })
       .addCase(createSizeMaster.fulfilled, (state, action) => {
-        state.sizeMasters.push(action.payload);
+        state.sizeMasters.unshift(action.payload);
       })
       .addCase(updateSizeMaster.fulfilled, (state, action) => {
         const index = state.sizeMasters.findIndex((s) => s._id === action.payload._id);

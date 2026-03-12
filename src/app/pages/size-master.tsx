@@ -1,25 +1,30 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchAllSizeMasters, createSizeMaster, updateSizeMaster, deleteSizeMaster } from "@/redux/slices/sizeMasterSlice";
+import { CommonDataTable } from "../components/ui/common-data-table";
 
 export function SizeMaster() {
   const dispatch = useAppDispatch();
-  const { sizeMasters, loading } = useAppSelector((state) => state.sizeMaster);
+  const { sizeMasters, loading, pagination } = useAppSelector((state) => state.sizeMaster);
   const [isOpen, setIsOpen] = useState(false);
   const [editingSize, setEditingSize] = useState<any>(null);
   const [formData, setFormData] = useState({ name: "", description: "" });
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    dispatch(fetchAllSizeMasters());
-  }, [dispatch]);
+    dispatch(fetchAllSizeMasters({ page: 1, limit: 10, search }));
+  }, [dispatch, search]);
+
+  const handlePageChange = (page: number) => {
+    dispatch(fetchAllSizeMasters({ page, limit: 10, search }));
+  };
 
   const handleAdd = () => {
     setEditingSize(null);
@@ -43,21 +48,28 @@ export function SizeMaster() {
         toast.success("Size added!");
       }
       setIsOpen(false);
+      dispatch(fetchAllSizeMasters({ page: pagination.currentPage, limit: 10, search }));
     } catch (err: any) {
       toast.error(err.message || "Failed to save size");
     }
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await dispatch(deleteSizeMaster(id)).unwrap();
-      toast.success("Size deleted!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete size");
+    if (window.confirm("Are you sure you want to delete this size?")) {
+      try {
+        await dispatch(deleteSizeMaster(id)).unwrap();
+        toast.success("Size deleted!");
+        dispatch(fetchAllSizeMasters({ page: pagination.currentPage, limit: 10, search }));
+      } catch (err: any) {
+        toast.error(err.message || "Failed to delete size");
+      }
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  const columns = [
+    { header: "Size Name", accessorKey: "name" },
+    { header: "Description", accessorKey: "description" },
+  ];
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
@@ -72,28 +84,16 @@ export function SizeMaster() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {sizeMasters.map((size: any) => (
-          <Card key={size._id} className="hover:shadow-lg transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="text-2xl font-bold text-gray-900">{size.name}</h3>
-                  <p className="text-sm text-gray-600 mt-1">{size.description}</p>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <Button onClick={() => handleEdit(size)} variant="ghost" size="icon">
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(size._id)}>
-                    <Trash2 className="w-4 h-4 text-red-600" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <CommonDataTable
+        columns={columns}
+        data={sizeMasters}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+        onSearchChange={setSearch}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        loading={loading}
+      />
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent>
@@ -103,11 +103,19 @@ export function SizeMaster() {
           <div className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label>Size Name</Label>
-              <Input placeholder="e.g., XL, 38, 42" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
+              <Input
+                placeholder="e.g., XL, 38, 42"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
             </div>
             <div className="space-y-2">
               <Label>Description (Optional)</Label>
-              <Input placeholder="e.g., Extra Large" value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} />
+              <Input
+                placeholder="e.g., Extra Large"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
             </div>
             <Button onClick={handleSave} className="w-full bg-indigo-600 hover:bg-indigo-700">
               {editingSize ? "Update" : "Add"} Size

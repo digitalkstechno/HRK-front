@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   UserCircle,
+  Truck,
 } from "lucide-react";
 import { Button } from "./ui/button";
 
@@ -25,7 +26,11 @@ const navigation = [
   { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { name: "Products", path: "/products", icon: Package },
   { name: "Size Master", path: "/size-master", icon: Ruler },
+  { name: "Category Master", path: "/category-master", icon: Package },
+  { name: "Transport Master", path: "/transport-master", icon: Truck },
   { name: "Customers", path: "/customers", icon: UserCircle },
+
+
   { name: "Users & Roles", path: "/users", icon: Users },
   { name: "Stock Entry", path: "/stock-entry", icon: PackagePlus },
   { name: "Billing", path: "/billing", icon: ShoppingCart },

@@ -4,13 +4,13 @@ import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchAllProducts, createProduct, updateProduct, deleteProduct } from "@/redux/slices/productSlice";
 import { fetchAllSizeMasters } from "@/redux/slices/sizeMasterSlice";
 import { Button } from "../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
-import { Plus, Edit, Trash2, Package } from "lucide-react";
+import { Plus, Package } from "lucide-react";
 import { toast } from "sonner";
 import bwipjs from "bwip-js";
+import { CommonDataTable } from "../components/ui/common-data-table";
 
 function BarcodeImage({ barcode }: { barcode: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -36,7 +36,7 @@ function BarcodeImage({ barcode }: { barcode: string }) {
 
 export function Products() {
   const dispatch = useAppDispatch();
-  const { products, loading } = useAppSelector((state) => state.product);
+  const { products, loading, pagination } = useAppSelector((state) => state.product);
   const { sizeMasters } = useAppSelector((state) => state.sizeMaster);
   const [isOpen, setIsOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
@@ -49,12 +49,13 @@ export function Products() {
     barcode: "",
   });
   const [selectedSizes, setSelectedSizes] = useState<any>({});
+  const [search, setSearch] = useState("");
   const barcodeCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    dispatch(fetchAllProducts());
-    dispatch(fetchAllSizeMasters());
-  }, [dispatch]);
+    dispatch(fetchAllProducts({ page: 1, limit: 10, search }));
+    dispatch(fetchAllSizeMasters({ page: 1, limit: 100 })); // Get all sizes for selection
+  }, [dispatch, search]);
 
   useEffect(() => {
     if (formData.barcode && barcodeCanvasRef.current) {
@@ -71,6 +72,10 @@ export function Products() {
       }
     }
   }, [formData.barcode]);
+
+  const handlePageChange = (page: number) => {
+    dispatch(fetchAllProducts({ page, limit: 10, search }));
+  };
 
   const generateSKU = (name: string) => {
     const prefix = name.substring(0, 3).toUpperCase();
@@ -111,7 +116,7 @@ export function Products() {
     
     const sizesObj: any = {};
     product.sizes?.forEach((s: any) => {
-      sizesObj[s.size._id || s.size] = { checked: true, quantity: s.quantity };
+      sizesObj[s.size?._id || s.size] = { checked: true, quantity: s.quantity };
     });
     setSelectedSizes(sizesObj);
     setIsOpen(true);
@@ -158,21 +163,53 @@ export function Products() {
         toast.success("Product created!");
       }
       setIsOpen(false);
+      dispatch(fetchAllProducts({ page: pagination.currentPage, limit: 10, search }));
     } catch (err: any) {
       toast.error(err.message || "Failed to save product");
     }
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await dispatch(deleteProduct(id)).unwrap();
-      toast.success("Product deleted!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete product");
+    if (window.confirm("Are you sure you want to delete this product?")) {
+      try {
+        await dispatch(deleteProduct(id)).unwrap();
+        toast.success("Product deleted!");
+        dispatch(fetchAllProducts({ page: pagination.currentPage, limit: 10, search }));
+      } catch (err: any) {
+        toast.error(err.message || "Failed to delete product");
+      }
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  const columns = [
+    { header: "Product Name", accessorKey: "name", cell: (item: any) => (
+      <div className="font-semibold">{item.name}</div>
+    )},
+    { header: "SKU", accessorKey: "sku" },
+    { header: "Barcode", accessorKey: "barcode", cell: (item: any) => (
+      <div className="flex items-center gap-2">
+        <BarcodeImage barcode={item.barcode} />
+      </div>
+    )},
+    { header: "Category", accessorKey: "category" },
+    { header: "Purchase Price", accessorKey: "purchasePrice", cell: (item: any) => `₹${item.purchasePrice}` },
+    { header: "Sale Price", accessorKey: "salePrice", cell: (item: any) => (
+      <span className="font-medium">₹{item.salePrice}</span>
+    )},
+    { header: "Sizes", accessorKey: "sizes", cell: (item: any) => (
+      item.sizes?.length > 0 ? (
+        <div className="text-xs">
+          {item.sizes.map((s: any, i: number) => (
+            <span key={i} className="inline-block bg-gray-100 px-2 py-1 rounded mr-1 mb-1">
+              {s.size?.name || s.size}: {s.quantity}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span className="text-gray-400 text-xs">No sizes</span>
+      )
+    )},
+  ];
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
@@ -187,79 +224,19 @@ export function Products() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Products ({products.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {products.length === 0 ? (
-            <p className="text-gray-500">No products found</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Product</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">SKU</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Barcode</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Category</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Purchase Price</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Sale Price</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Sizes</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.map((product: any) => (
-                    <tr key={product._id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        <div>
-                          <p className="font-semibold">{product.name}</p>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">{product.sku}</td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <BarcodeImage barcode={product.barcode} />
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">{product.category}</td>
-                      <td className="py-3 px-4">₹{product.purchasePrice}</td>
-                      <td className="py-3 px-4 font-medium">₹{product.salePrice}</td>
-                      <td className="py-3 px-4">
-                        {product.sizes?.length > 0 ? (
-                          <div className="text-xs">
-                            {product.sizes.map((s: any, i: number) => (
-                              <span key={i} className="inline-block bg-gray-100 px-2 py-1 rounded mr-1 mb-1">
-                                {s.size?.name || s.size}: {s.quantity}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">No sizes</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center space-x-2">
-                          <Button onClick={() => handleEdit(product)} variant="ghost" size="icon">
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button onClick={() => handleDelete(product._id)} variant="ghost" size="icon">
-                            <Trash2 className="w-4 h-4 text-red-600" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <CommonDataTable
+        columns={columns}
+        data={products}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+        onSearchChange={setSearch}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        loading={loading}
+      />
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="w-[90vw] max-w-[1600px] max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="w-[90vw] max-w-[1200px] max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader className="pb-4 border-b">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
@@ -274,11 +251,9 @@ export function Products() {
           
           <div className="flex-1 overflow-y-auto py-6 px-1">
             <div className="space-y-6">
-              {/* Product Information Section */}
               <div className="bg-gray-50 rounded-lg p-6 space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Product Information</h3>
-                
-                <div className="grid grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Product Name <span className="text-red-500">*</span></Label>
                     <Input 
@@ -288,24 +263,14 @@ export function Products() {
                       className="h-11"
                     />
                   </div>
-                  
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">SKU <span className="text-xs text-gray-500">(Auto-generated)</span></Label>
-                    <Input 
-                      value={formData.sku} 
-                      disabled 
-                      className="bg-gray-100 h-11 font-mono"
-                    />
+                    <Input value={formData.sku} disabled className="bg-gray-100 h-11 font-mono" />
                   </div>
-                  
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Barcode <span className="text-xs text-gray-500">(Auto-generated)</span></Label>
                     <div className="flex gap-2">
-                      <Input 
-                        value={formData.barcode} 
-                        disabled 
-                        className="bg-gray-100 h-11 font-mono flex-1"
-                      />
+                      <Input value={formData.barcode} disabled className="bg-gray-100 h-11 font-mono flex-1" />
                       <div className="flex items-center justify-center border-2 border-gray-300 rounded-lg px-2 py-1 bg-white">
                         <canvas ref={barcodeCanvasRef} style={{maxWidth: '80px', height: 'auto'}} />
                       </div>
@@ -314,127 +279,81 @@ export function Products() {
                 </div>
               </div>
 
-              {/* Pricing Section */}
               <div className="bg-gray-50 rounded-lg p-6 space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Pricing & Category</h3>
-                
-                <div className="grid grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Category <span className="text-red-500">*</span></Label>
                     <Input 
                       value={formData.category} 
                       onChange={(e) => setFormData({...formData, category: e.target.value})}
-                      placeholder="e.g., Shirts, Sarees, Jeans"
+                      placeholder="e.g., Shirts, Sarees"
                       className="h-11"
                     />
                   </div>
-                  
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Purchase Price <span className="text-red-500">*</span></Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
-                      <Input 
-                        type="number" 
-                        value={formData.purchasePrice} 
-                        onChange={(e) => setFormData({...formData, purchasePrice: +e.target.value})}
-                        placeholder="0.00"
-                        className="h-11 pl-8"
-                      />
-                    </div>
+                    <Input 
+                      type="number" 
+                      value={formData.purchasePrice} 
+                      onChange={(e) => setFormData({...formData, purchasePrice: +e.target.value})}
+                      className="h-11"
+                    />
                   </div>
-                  
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Sale Price <span className="text-red-500">*</span></Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
-                      <Input 
-                        type="number" 
-                        value={formData.salePrice} 
-                        onChange={(e) => setFormData({...formData, salePrice: +e.target.value})}
-                        placeholder="0.00"
-                        className="h-11 pl-8"
-                      />
-                    </div>
+                    <Input 
+                      type="number" 
+                      value={formData.salePrice} 
+                      onChange={(e) => setFormData({...formData, salePrice: +e.target.value})}
+                      className="h-11"
+                    />
                   </div>
                 </div>
               </div>
 
-              {/* Sizes Section */}
               <div className="bg-gray-50 rounded-lg p-6 space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Size & Stock Management</h3>
-                
-                <div className="bg-white border-2 border-gray-200 rounded-lg overflow-hidden">
+                <div className="bg-white border rounded-lg overflow-hidden">
                   <table className="w-full">
-                    <thead className="bg-indigo-50">
+                    <thead className="bg-gray-50">
                       <tr>
-                        <th className="text-left py-3 px-6 text-sm font-semibold text-gray-700 w-24">Select</th>
-                        <th className="text-left py-3 px-6 text-sm font-semibold text-gray-700">Size Name</th>
-                        <th className="text-left py-3 px-6 text-sm font-semibold text-gray-700 w-48">Stock Quantity</th>
+                        <th className="py-2 px-4 text-left">Select</th>
+                        <th className="py-2 px-4 text-left">Size Name</th>
+                        <th className="py-2 px-4 text-left">Stock Quantity</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {sizeMasters.length === 0 ? (
-                        <tr>
-                          <td colSpan={3} className="py-8 px-6 text-center">
-                            <div className="text-gray-400">
-                              <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                              <p className="text-sm">No sizes available</p>
-                              <p className="text-xs mt-1">Please create sizes in Size Master first</p>
-                            </div>
+                      {sizeMasters.map((size: any) => (
+                        <tr key={size._id} className="border-t">
+                          <td className="py-2 px-4">
+                            <input
+                              type="checkbox"
+                              checked={selectedSizes[size._id]?.checked || false}
+                              onChange={() => toggleSize(size._id)}
+                            />
+                          </td>
+                          <td className="py-2 px-4">{size.name}</td>
+                          <td className="py-2 px-4">
+                            <Input
+                              type="number"
+                              disabled={!selectedSizes[size._id]?.checked}
+                              value={selectedSizes[size._id]?.quantity || 0}
+                              onChange={(e) => updateQuantity(size._id, +e.target.value)}
+                              className="h-8 max-w-[100px]"
+                            />
                           </td>
                         </tr>
-                      ) : (
-                        sizeMasters.map((size: any, index: number) => (
-                          <tr key={size._id} className={`border-t hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                            <td className="py-4 px-6">
-                              <input
-                                type="checkbox"
-                                checked={selectedSizes[size._id]?.checked || false}
-                                onChange={() => toggleSize(size._id)}
-                                className="w-5 h-5 cursor-pointer accent-indigo-600"
-                              />
-                            </td>
-                            <td className="py-4 px-6">
-                              <div>
-                                <span className="font-semibold text-gray-900">{size.name}</span>
-                                {size.description && (
-                                  <span className="text-sm text-gray-500 ml-2">({size.description})</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-4 px-6">
-                              <Input
-                                type="number"
-                                value={selectedSizes[size._id]?.quantity || 0}
-                                onChange={(e) => updateQuantity(size._id, +e.target.value)}
-                                disabled={!selectedSizes[size._id]?.checked}
-                                className="w-full h-10"
-                                min="0"
-                                placeholder="Enter quantity"
-                              />
-                            </td>
-                          </tr>
-                        ))
-                      )}
+                      ))}
                     </tbody>
                   </table>
                 </div>
               </div>
             </div>
           </div>
-
           <div className="pt-4 border-t flex gap-3">
-            <Button 
-              onClick={() => setIsOpen(false)} 
-              variant="outline" 
-              className="flex-1 h-11"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSave} 
-              className="flex-1 h-11 bg-indigo-600 hover:bg-indigo-700"
-            >
+            <Button onClick={() => setIsOpen(false)} variant="outline" className="flex-1">Cancel</Button>
+            <Button onClick={handleSave} className="flex-1 bg-indigo-600">
               {editingProduct ? "Update Product" : "Create Product"}
             </Button>
           </div>

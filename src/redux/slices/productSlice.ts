@@ -4,6 +4,12 @@ import api from '@/lib/axios';
 interface ProductState {
   products: any[];
   currentProduct: any;
+  pagination: {
+    totalRecords: number;
+    currentPage: number;
+    totalPages: number;
+    limit: number;
+  };
   loading: boolean;
   error: string | null;
 }
@@ -11,14 +17,25 @@ interface ProductState {
 const initialState: ProductState = {
   products: [],
   currentProduct: null,
+  pagination: {
+    totalRecords: 0,
+    currentPage: 1,
+    totalPages: 0,
+    limit: 10,
+  },
   loading: false,
   error: null,
 };
 
-export const fetchAllProducts = createAsyncThunk('product/fetchAll', async () => {
-  const response = await api.get('/product');
-  return response.data.data;
-});
+export const fetchAllProducts = createAsyncThunk(
+  'product/fetchAll',
+  async ({ page, limit, search }: { page?: number; limit?: number; search?: string } = {}) => {
+    const response = await api.get('/product', {
+      params: { page, limit, search },
+    });
+    return response.data;
+  }
+);
 
 export const fetchProductById = createAsyncThunk('product/fetchById', async (id: string) => {
   const response = await api.get(`/product/${id}`);
@@ -51,7 +68,8 @@ const productSlice = createSlice({
       })
       .addCase(fetchAllProducts.fulfilled, (state, action) => {
         state.loading = false;
-        state.products = action.payload;
+        state.products = action.payload.data;
+        state.pagination = action.payload.pagination;
       })
       .addCase(fetchAllProducts.rejected, (state, action) => {
         state.loading = false;
@@ -61,7 +79,7 @@ const productSlice = createSlice({
         state.currentProduct = action.payload;
       })
       .addCase(createProduct.fulfilled, (state, action) => {
-        state.products.push(action.payload);
+        state.products.unshift(action.payload);
       })
       .addCase(updateProduct.fulfilled, (state, action) => {
         const index = state.products.findIndex((p) => p._id === action.payload._id);
