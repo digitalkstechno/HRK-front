@@ -2,12 +2,12 @@
 import { useEffect, useState } from "react";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchAllProducts } from "@/redux/slices/productSlice";
-import { createStockEntry, fetchAllStockEntries } from "@/redux/slices/stockEntrySlice";
+import { createStockEntry, fetchAllStockEntries, deleteStockEntry } from "@/redux/slices/stockEntrySlice";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../components/ui/dialog";
-import { Plus, Inbox, Calendar, User, FileText, Package, Hash } from "lucide-react";
+import { Plus, Inbox, Calendar, User, FileText, Package, Hash, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { CommonDataTable } from "../components/ui/common-data-table";
 import { Badge } from "../components/ui/badge";
@@ -59,6 +59,18 @@ export function StockEntry() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (window.confirm("Are you sure? This will also remove all barcodes associated with this stock entry.")) {
+        try {
+            await dispatch(deleteStockEntry(id)).unwrap();
+            toast.success("Stock entry and related barcodes removed");
+            dispatch(fetchAllStockEntries({ page: pagination.currentPage, limit: 10 }));
+        } catch (err: any) {
+            toast.error(err.message || "Failed to delete");
+        }
+    }
+  };
+
   const columns = [
     { header: "Date", accessorKey: "entryDate", cell: (item: any) => (
       <span className="text-sm font-medium">{new Date(item.entryDate).toLocaleDateString()}</span>
@@ -80,6 +92,11 @@ export function StockEntry() {
     )},
     { header: "Total PCS", accessorKey: "totalItems", cell: (item: any) => (
         <span className="font-bold text-sm">{item.totalItems} PCS</span>
+    )},
+    { header: "ACTIONS", accessorKey: "actions", cell: (item: any) => (
+        <Button onClick={() => handleDelete(item._id)} variant="outline" size="sm" className="h-8 text-red-600 border-red-100 hover:bg-red-50">
+            <Trash2 className="w-4 h-4 mr-1" /> Delete
+        </Button>
     )}
   ];
 

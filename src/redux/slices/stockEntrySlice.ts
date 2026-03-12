@@ -51,6 +51,11 @@ export const fetchProductInventory = createAsyncThunk('stockEntry/fetchInventory
   return response.data.data;
 });
 
+export const deleteStockEntry = createAsyncThunk('stockEntry/delete', async (id: string) => {
+  const response = await api.delete(`/stock-entry/${id}`);
+  return id;
+});
+
 const stockEntrySlice = createSlice({
   name: 'stockEntry',
   initialState,
