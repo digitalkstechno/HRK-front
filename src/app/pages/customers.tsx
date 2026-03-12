@@ -1,30 +1,30 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Search, Plus, Edit, Trash2, User } from "lucide-react";
+import { Plus, User } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { toast } from "sonner";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchAllCustomers, createCustomer, updateCustomer, deleteCustomer } from "@/redux/slices/customerSlice";
+import { CommonDataTable } from "../components/ui/common-data-table";
 
 export function Customers() {
   const dispatch = useAppDispatch();
-  const { customers, loading } = useAppSelector((state) => state.customer);
-  const [searchTerm, setSearchTerm] = useState("");
+  const { customers, loading, pagination } = useAppSelector((state) => state.customer);
   const [isOpen, setIsOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [formData, setFormData] = useState({ name: "", phone: "", email: "" });
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    dispatch(fetchAllCustomers());
-  }, [dispatch]);
+    dispatch(fetchAllCustomers({ page: 1, limit: 10, search }));
+  }, [dispatch, search]);
 
-  const filteredCustomers = customers.filter(
-    (c: any) => c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || c.phone?.includes(searchTerm)
-  );
+  const handlePageChange = (page: number) => {
+    dispatch(fetchAllCustomers({ page, limit: 10, search }));
+  };
 
   const handleAdd = () => {
     setEditingCustomer(null);
@@ -48,21 +48,36 @@ export function Customers() {
         toast.success("Customer added!");
       }
       setIsOpen(false);
+      dispatch(fetchAllCustomers({ page: pagination?.currentPage || 1, limit: 10, search }));
     } catch (err: any) {
       toast.error(err.message || "Failed to save customer");
     }
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await dispatch(deleteCustomer(id)).unwrap();
-      toast.success("Customer deleted!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete customer");
+    if (window.confirm("Are you sure you want to delete this customer?")) {
+      try {
+        await dispatch(deleteCustomer(id)).unwrap();
+        toast.success("Customer deleted!");
+        dispatch(fetchAllCustomers({ page: pagination?.currentPage || 1, limit: 10, search }));
+      } catch (err: any) {
+        toast.error(err.message || "Failed to delete customer");
+      }
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  const columns = [
+    { header: "Customer", accessorKey: "name", cell: (item: any) => (
+      <div className="flex items-center space-x-3">
+        <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+          <User className="w-5 h-5 text-indigo-600" />
+        </div>
+        <span className="font-medium">{item.name}</span>
+      </div>
+    )},
+    { header: "Phone", accessorKey: "phone" },
+    { header: "Email", accessorKey: "email" },
+  ];
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
@@ -77,61 +92,16 @@ export function Customers() {
         </Button>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-        <Input
-          placeholder="Search by name or phone..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
-        />
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>All Customers ({filteredCustomers.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Customer</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Phone</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Email</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCustomers.map((customer: any) => (
-                  <tr key={customer._id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                          <User className="w-6 h-6 text-indigo-600" />
-                        </div>
-                        <span className="font-medium">{customer.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">{customer.phone}</td>
-                    <td className="py-3 px-4">{customer.email}</td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center space-x-2">
-                        <Button onClick={() => handleEdit(customer)} variant="ghost" size="icon">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button onClick={() => handleDelete(customer._id)} variant="ghost" size="icon">
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <CommonDataTable
+        columns={columns}
+        data={customers}
+        pagination={pagination || { totalRecords: 0, currentPage: 1, totalPages: 0, limit: 10 }}
+        onPageChange={handlePageChange}
+        onSearchChange={setSearch}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        loading={loading}
+      />
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent>

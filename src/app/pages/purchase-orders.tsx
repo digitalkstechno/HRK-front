@@ -1,26 +1,31 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Badge } from "../components/ui/badge";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { toast } from "sonner";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchAllPurchaseOrders, createPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder } from "@/redux/slices/purchaseOrderSlice";
+import { CommonDataTable } from "../components/ui/common-data-table";
 
 export function PurchaseOrders() {
   const dispatch = useAppDispatch();
-  const { purchaseOrders, loading } = useAppSelector((state) => state.purchaseOrder);
+  const { purchaseOrders, loading, pagination } = useAppSelector((state) => state.purchaseOrder);
   const [isOpen, setIsOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<any>(null);
   const [formData, setFormData] = useState({ supplier: "", items: [], totalAmount: 0, status: "Pending" });
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    dispatch(fetchAllPurchaseOrders());
-  }, [dispatch]);
+    dispatch(fetchAllPurchaseOrders({ page: 1, limit: 10, search }));
+  }, [dispatch, search]);
+
+  const handlePageChange = (page: number) => {
+    dispatch(fetchAllPurchaseOrders({ page, limit: 10, search }));
+  };
 
   const handleAdd = () => {
     setEditingOrder(null);
@@ -44,21 +49,33 @@ export function PurchaseOrders() {
         toast.success("Order created!");
       }
       setIsOpen(false);
+      dispatch(fetchAllPurchaseOrders({ page: pagination?.currentPage || 1, limit: 10, search }));
     } catch (err: any) {
       toast.error(err.message || "Failed to save order");
     }
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await dispatch(deletePurchaseOrder(id)).unwrap();
-      toast.success("Order deleted!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete order");
+    if (window.confirm("Are you sure you want to delete this order?")) {
+      try {
+        await dispatch(deletePurchaseOrder(id)).unwrap();
+        toast.success("Order deleted!");
+        dispatch(fetchAllPurchaseOrders({ page: pagination?.currentPage || 1, limit: 10, search }));
+      } catch (err: any) {
+        toast.error(err.message || "Failed to delete order");
+      }
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  const columns = [
+    { header: "Supplier", accessorKey: "supplier" },
+    { header: "Amount", accessorKey: "totalAmount", cell: (item: any) => <span className="font-medium">₹{item.totalAmount}</span> },
+    { header: "Status", accessorKey: "status", cell: (item: any) => (
+      <Badge variant={item.status === "Completed" ? "default" : "secondary"}>
+        {item.status}
+      </Badge>
+    )},
+  ];
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
@@ -73,48 +90,16 @@ export function PurchaseOrders() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Purchase Orders ({purchaseOrders.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Supplier</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Amount</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Status</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {purchaseOrders.map((order: any) => (
-                  <tr key={order._id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4">{order.supplier}</td>
-                    <td className="py-3 px-4 font-medium">₹{order.totalAmount}</td>
-                    <td className="py-3 px-4">
-                      <Badge variant={order.status === "Completed" ? "default" : "secondary"}>
-                        {order.status}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center space-x-2">
-                        <Button onClick={() => handleEdit(order)} variant="ghost" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button onClick={() => handleDelete(order._id)} variant="ghost" size="sm">
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <CommonDataTable
+        columns={columns}
+        data={purchaseOrders}
+        pagination={pagination || { totalRecords: 0, currentPage: 1, totalPages: 0, limit: 10 }}
+        onPageChange={handlePageChange}
+        onSearchChange={setSearch}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        loading={loading}
+      />
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent>

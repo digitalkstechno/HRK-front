@@ -1,26 +1,31 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Badge } from "../components/ui/badge";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { toast } from "sonner";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchAllReturns, createReturn, updateReturn, deleteReturn } from "@/redux/slices/returnSlice";
+import { CommonDataTable } from "../components/ui/common-data-table";
 
 export function Returns() {
   const dispatch = useAppDispatch();
-  const { returns, loading } = useAppSelector((state) => state.return);
+  const { returns, loading, pagination } = useAppSelector((state) => state.return);
   const [isOpen, setIsOpen] = useState(false);
   const [editingReturn, setEditingReturn] = useState<any>(null);
   const [formData, setFormData] = useState({ invoice: "", product: "", customer: "", amount: 0, reason: "", status: "Pending" });
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    dispatch(fetchAllReturns());
-  }, [dispatch]);
+    dispatch(fetchAllReturns({ page: 1, limit: 10, search }));
+  }, [dispatch, search]);
+
+  const handlePageChange = (page: number) => {
+    dispatch(fetchAllReturns({ page, limit: 10, search }));
+  };
 
   const handleAdd = () => {
     setEditingReturn(null);
@@ -30,7 +35,14 @@ export function Returns() {
 
   const handleEdit = (ret: any) => {
     setEditingReturn(ret);
-    setFormData({ invoice: ret.invoice, product: ret.product, customer: ret.customer, amount: ret.amount, reason: ret.reason, status: ret.status });
+    setFormData({ 
+      invoice: ret.invoice, 
+      product: typeof ret.product === 'object' ? ret.product?._id : ret.product, 
+      customer: typeof ret.customer === 'object' ? ret.customer?._id : ret.customer, 
+      amount: ret.amount, 
+      reason: ret.reason || "", 
+      status: ret.status 
+    });
     setIsOpen(true);
   };
 
@@ -44,21 +56,35 @@ export function Returns() {
         toast.success("Return created!");
       }
       setIsOpen(false);
+      dispatch(fetchAllReturns({ page: pagination?.currentPage || 1, limit: 10, search }));
     } catch (err: any) {
       toast.error(err.message || "Failed to save return");
     }
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await dispatch(deleteReturn(id)).unwrap();
-      toast.success("Return deleted!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete return");
+    if (window.confirm("Are you sure you want to delete this return?")) {
+      try {
+        await dispatch(deleteReturn(id)).unwrap();
+        toast.success("Return deleted!");
+        dispatch(fetchAllReturns({ page: pagination?.currentPage || 1, limit: 10, search }));
+      } catch (err: any) {
+        toast.error(err.message || "Failed to delete return");
+      }
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  const columns = [
+    { header: "Invoice", accessorKey: "invoice" },
+    { header: "Product", accessorKey: "product", cell: (item: any) => (typeof item.product === 'object' ? item.product?.name : item.product) },
+    { header: "Customer", accessorKey: "customer", cell: (item: any) => (typeof item.customer === 'object' ? item.customer?.name : item.customer) },
+    { header: "Amount", accessorKey: "amount", cell: (item: any) => <span className="font-medium">₹{item.amount}</span> },
+    { header: "Status", accessorKey: "status", cell: (item: any) => (
+      <Badge variant={item.status === "Completed" ? "default" : "secondary"}>
+        {item.status}
+      </Badge>
+    )},
+  ];
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
@@ -73,52 +99,16 @@ export function Returns() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Returns ({returns.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Invoice</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Product</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Customer</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Amount</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Status</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {returns.map((ret: any) => (
-                  <tr key={ret._id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4">{ret.invoice}</td>
-                    <td className="py-3 px-4">{ret.product}</td>
-                    <td className="py-3 px-4">{ret.customer}</td>
-                    <td className="py-3 px-4 font-medium">₹{ret.amount}</td>
-                    <td className="py-3 px-4">
-                      <Badge variant={ret.status === "Completed" ? "default" : "secondary"}>
-                        {ret.status}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center space-x-2">
-                        <Button onClick={() => handleEdit(ret)} variant="ghost" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button onClick={() => handleDelete(ret._id)} variant="ghost" size="sm">
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <CommonDataTable
+        columns={columns}
+        data={returns}
+        pagination={pagination || { totalRecords: 0, currentPage: 1, totalPages: 0, limit: 10 }}
+        onPageChange={handlePageChange}
+        onSearchChange={setSearch}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        loading={loading}
+      />
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent>
@@ -131,11 +121,11 @@ export function Returns() {
               <Input value={formData.invoice} onChange={(e) => setFormData({...formData, invoice: e.target.value})} />
             </div>
             <div className="space-y-2">
-              <Label>Product</Label>
+              <Label>Product ID</Label>
               <Input value={formData.product} onChange={(e) => setFormData({...formData, product: e.target.value})} />
             </div>
             <div className="space-y-2">
-              <Label>Customer</Label>
+              <Label>Customer ID</Label>
               <Input value={formData.customer} onChange={(e) => setFormData({...formData, customer: e.target.value})} />
             </div>
             <div className="space-y-2">

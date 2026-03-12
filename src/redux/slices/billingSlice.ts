@@ -4,6 +4,12 @@ import api from '@/lib/axios';
 interface BillingState {
   billings: any[];
   currentBilling: any;
+  pagination: {
+    totalRecords: number;
+    currentPage: number;
+    totalPages: number;
+    limit: number;
+  };
   loading: boolean;
   error: string | null;
 }
@@ -11,14 +17,25 @@ interface BillingState {
 const initialState: BillingState = {
   billings: [],
   currentBilling: null,
+  pagination: {
+    totalRecords: 0,
+    currentPage: 1,
+    totalPages: 0,
+    limit: 10,
+  },
   loading: false,
   error: null,
 };
 
-export const fetchAllBillings = createAsyncThunk('billing/fetchAll', async () => {
-  const response = await api.get('/billing');
-  return response.data.data;
-});
+export const fetchAllBillings = createAsyncThunk(
+  'billing/fetchAll',
+  async ({ page, limit, search }: { page?: number; limit?: number; search?: string } = {}) => {
+    const response = await api.get('/billing', {
+      params: { page, limit, search },
+    });
+    return response.data;
+  }
+);
 
 export const fetchBillingById = createAsyncThunk('billing/fetchById', async (id: string) => {
   const response = await api.get(`/billing/${id}`);
@@ -51,7 +68,8 @@ const billingSlice = createSlice({
       })
       .addCase(fetchAllBillings.fulfilled, (state, action) => {
         state.loading = false;
-        state.billings = action.payload;
+        state.billings = action.payload.data;
+        state.pagination = action.payload.pagination;
       })
       .addCase(fetchAllBillings.rejected, (state, action) => {
         state.loading = false;
@@ -61,7 +79,7 @@ const billingSlice = createSlice({
         state.currentBilling = action.payload;
       })
       .addCase(createBilling.fulfilled, (state, action) => {
-        state.billings.push(action.payload);
+        state.billings.unshift(action.payload);
       })
       .addCase(updateBilling.fulfilled, (state, action) => {
         const index = state.billings.findIndex((b) => b._id === action.payload._id);

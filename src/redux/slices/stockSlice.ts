@@ -4,6 +4,12 @@ import api from '@/lib/axios';
 interface StockState {
   stocks: any[];
   currentStock: any;
+  pagination: {
+    totalRecords: number;
+    currentPage: number;
+    totalPages: number;
+    limit: number;
+  };
   loading: boolean;
   error: string | null;
 }
@@ -11,14 +17,25 @@ interface StockState {
 const initialState: StockState = {
   stocks: [],
   currentStock: null,
+  pagination: {
+    totalRecords: 0,
+    currentPage: 1,
+    totalPages: 0,
+    limit: 10,
+  },
   loading: false,
   error: null,
 };
 
-export const fetchAllStocks = createAsyncThunk('stock/fetchAll', async () => {
-  const response = await api.get('/stock');
-  return response.data.data;
-});
+export const fetchAllStocks = createAsyncThunk(
+  'stock/fetchAll',
+  async ({ page, limit, search }: { page?: number; limit?: number; search?: string } = {}) => {
+    const response = await api.get('/stock', {
+      params: { page, limit, search },
+    });
+    return response.data;
+  }
+);
 
 export const fetchStockById = createAsyncThunk('stock/fetchById', async (id: string) => {
   const response = await api.get(`/stock/${id}`);
@@ -51,7 +68,8 @@ const stockSlice = createSlice({
       })
       .addCase(fetchAllStocks.fulfilled, (state, action) => {
         state.loading = false;
-        state.stocks = action.payload;
+        state.stocks = action.payload.data;
+        state.pagination = action.payload.pagination;
       })
       .addCase(fetchAllStocks.rejected, (state, action) => {
         state.loading = false;
@@ -61,7 +79,7 @@ const stockSlice = createSlice({
         state.currentStock = action.payload;
       })
       .addCase(createStock.fulfilled, (state, action) => {
-        state.stocks.push(action.payload);
+        state.stocks.unshift(action.payload);
       })
       .addCase(updateStock.fulfilled, (state, action) => {
         const index = state.stocks.findIndex((s) => s._id === action.payload._id);

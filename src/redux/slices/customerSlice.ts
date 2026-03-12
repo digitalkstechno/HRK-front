@@ -4,6 +4,12 @@ import api from '@/lib/axios';
 interface CustomerState {
   customers: any[];
   currentCustomer: any;
+  pagination: {
+    totalRecords: number;
+    currentPage: number;
+    totalPages: number;
+    limit: number;
+  };
   loading: boolean;
   error: string | null;
 }
@@ -11,14 +17,25 @@ interface CustomerState {
 const initialState: CustomerState = {
   customers: [],
   currentCustomer: null,
+  pagination: {
+    totalRecords: 0,
+    currentPage: 1,
+    totalPages: 0,
+    limit: 10,
+  },
   loading: false,
   error: null,
 };
 
-export const fetchAllCustomers = createAsyncThunk('customer/fetchAll', async () => {
-  const response = await api.get('/customer');
-  return response.data.data;
-});
+export const fetchAllCustomers = createAsyncThunk(
+  'customer/fetchAll',
+  async ({ page, limit, search }: { page?: number; limit?: number; search?: string } = {}) => {
+    const response = await api.get('/customer', {
+      params: { page, limit, search },
+    });
+    return response.data;
+  }
+);
 
 export const fetchCustomerById = createAsyncThunk('customer/fetchById', async (id: string) => {
   const response = await api.get(`/customer/${id}`);
@@ -51,7 +68,8 @@ const customerSlice = createSlice({
       })
       .addCase(fetchAllCustomers.fulfilled, (state, action) => {
         state.loading = false;
-        state.customers = action.payload;
+        state.customers = action.payload.data;
+        state.pagination = action.payload.pagination;
       })
       .addCase(fetchAllCustomers.rejected, (state, action) => {
         state.loading = false;
@@ -61,7 +79,7 @@ const customerSlice = createSlice({
         state.currentCustomer = action.payload;
       })
       .addCase(createCustomer.fulfilled, (state, action) => {
-        state.customers.push(action.payload);
+        state.customers.unshift(action.payload);
       })
       .addCase(updateCustomer.fulfilled, (state, action) => {
         const index = state.customers.findIndex((c) => c._id === action.payload._id);

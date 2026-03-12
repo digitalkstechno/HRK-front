@@ -4,6 +4,12 @@ import api from '@/lib/axios';
 interface SaleOrderState {
   saleOrders: any[];
   currentSaleOrder: any;
+  pagination: {
+    totalRecords: number;
+    currentPage: number;
+    totalPages: number;
+    limit: number;
+  };
   loading: boolean;
   error: string | null;
 }
@@ -11,14 +17,25 @@ interface SaleOrderState {
 const initialState: SaleOrderState = {
   saleOrders: [],
   currentSaleOrder: null,
+  pagination: {
+    totalRecords: 0,
+    currentPage: 1,
+    totalPages: 0,
+    limit: 10,
+  },
   loading: false,
   error: null,
 };
 
-export const fetchAllSaleOrders = createAsyncThunk('saleOrder/fetchAll', async () => {
-  const response = await api.get('/saleorder');
-  return response.data.data;
-});
+export const fetchAllSaleOrders = createAsyncThunk(
+  'saleOrder/fetchAll',
+  async ({ page, limit, search }: { page?: number; limit?: number; search?: string } = {}) => {
+    const response = await api.get('/saleorder', {
+      params: { page, limit, search },
+    });
+    return response.data;
+  }
+);
 
 export const fetchSaleOrderById = createAsyncThunk('saleOrder/fetchById', async (id: string) => {
   const response = await api.get(`/saleorder/${id}`);
@@ -51,7 +68,8 @@ const saleOrderSlice = createSlice({
       })
       .addCase(fetchAllSaleOrders.fulfilled, (state, action) => {
         state.loading = false;
-        state.saleOrders = action.payload;
+        state.saleOrders = action.payload.data;
+        state.pagination = action.payload.pagination;
       })
       .addCase(fetchAllSaleOrders.rejected, (state, action) => {
         state.loading = false;
@@ -61,7 +79,7 @@ const saleOrderSlice = createSlice({
         state.currentSaleOrder = action.payload;
       })
       .addCase(createSaleOrder.fulfilled, (state, action) => {
-        state.saleOrders.push(action.payload);
+        state.saleOrders.unshift(action.payload);
       })
       .addCase(updateSaleOrder.fulfilled, (state, action) => {
         const index = state.saleOrders.findIndex((s) => s._id === action.payload._id);

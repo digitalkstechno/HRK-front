@@ -4,6 +4,12 @@ import api from '@/lib/axios';
 interface ReturnState {
   returns: any[];
   currentReturn: any;
+  pagination: {
+    totalRecords: number;
+    currentPage: number;
+    totalPages: number;
+    limit: number;
+  };
   loading: boolean;
   error: string | null;
 }
@@ -11,14 +17,25 @@ interface ReturnState {
 const initialState: ReturnState = {
   returns: [],
   currentReturn: null,
+  pagination: {
+    totalRecords: 0,
+    currentPage: 1,
+    totalPages: 0,
+    limit: 10,
+  },
   loading: false,
   error: null,
 };
 
-export const fetchAllReturns = createAsyncThunk('return/fetchAll', async () => {
-  const response = await api.get('/return');
-  return response.data.data;
-});
+export const fetchAllReturns = createAsyncThunk(
+  'return/fetchAll',
+  async ({ page, limit, search }: { page?: number; limit?: number; search?: string } = {}) => {
+    const response = await api.get('/return', {
+      params: { page, limit, search },
+    });
+    return response.data;
+  }
+);
 
 export const fetchReturnById = createAsyncThunk('return/fetchById', async (id: string) => {
   const response = await api.get(`/return/${id}`);
@@ -51,7 +68,8 @@ const returnSlice = createSlice({
       })
       .addCase(fetchAllReturns.fulfilled, (state, action) => {
         state.loading = false;
-        state.returns = action.payload;
+        state.returns = action.payload.data;
+        state.pagination = action.payload.pagination;
       })
       .addCase(fetchAllReturns.rejected, (state, action) => {
         state.loading = false;
@@ -61,7 +79,7 @@ const returnSlice = createSlice({
         state.currentReturn = action.payload;
       })
       .addCase(createReturn.fulfilled, (state, action) => {
-        state.returns.push(action.payload);
+        state.returns.unshift(action.payload);
       })
       .addCase(updateReturn.fulfilled, (state, action) => {
         const index = state.returns.findIndex((r) => r._id === action.payload._id);

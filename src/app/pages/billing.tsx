@@ -4,34 +4,36 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Plus, Trash2, Save, Printer, Eye, Search, Scan, UserPlus } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { Plus, Trash2, Save, Printer, Eye, Scan } from "lucide-react";
 import { toast } from "sonner";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchAllProducts } from "@/redux/slices/productSlice";
 import { fetchAllCustomers } from "@/redux/slices/customerSlice";
 import { fetchAllBillings, createBilling } from "@/redux/slices/billingSlice";
+import { CommonDataTable } from "../components/ui/common-data-table";
 
 export function Billing() {
   const dispatch = useAppDispatch();
   const { products } = useAppSelector((state) => state.product);
   const { customers } = useAppSelector((state) => state.customer);
-  const { billings } = useAppSelector((state) => state.billing);
+  const { billings, loading, pagination } = useAppSelector((state) => state.billing);
   
   const [items, setItems] = useState([{ id: 1, barcode: "", product: "", productId: "", size: "", quantity: 1, price: 0, total: 0 }]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [barcodeInput, setBarcodeInput] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [discount, setDiscount] = useState(0);
-  const [showNewCustomer, setShowNewCustomer] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({ name: "", phone: "" });
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    dispatch(fetchAllProducts());
-    dispatch(fetchAllCustomers());
-    dispatch(fetchAllBillings());
-  }, [dispatch]);
+    dispatch(fetchAllProducts({ page: 1, limit: 100 }));
+    dispatch(fetchAllCustomers({ page: 1, limit: 100 }));
+    dispatch(fetchAllBillings({ page: 1, limit: 10, search }));
+  }, [dispatch, search]);
+
+  const handlePageChange = (page: number) => {
+    dispatch(fetchAllBillings({ page, limit: 10, search }));
+  };
 
   const addItem = () => {
     setItems([...items, { id: Date.now(), barcode: "", product: "", productId: "", size: "", quantity: 1, price: 0, total: 0 }]);
@@ -56,7 +58,7 @@ export function Billing() {
       };
       setItems([...items, newItem]);
       setBarcodeInput("");
-      toast.success(`${product.name} added! Available sizes: ${product.sizes?.map((s: any) => s.size?.name).join(', ')}`);
+      toast.success(`${product.name} added!`);
     } else {
       toast.error("Product not found!");
     }
@@ -98,6 +100,7 @@ export function Billing() {
       setSelectedCustomer(null);
       setItems([{ id: 1, barcode: "", product: "", productId: "", size: "", quantity: 1, price: 0, total: 0 }]);
       setDiscount(0);
+      dispatch(fetchAllBillings({ page: 1, limit: 10, search }));
     } catch (err: any) {
       toast.error(err.message || "Failed to save bill");
     }
@@ -108,15 +111,18 @@ export function Billing() {
     toast.success("Printing invoice...");
   };
 
-  const filteredBills = billings.filter((bill: any) =>
-    bill.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const subtotal = items.reduce((sum, item) => sum + item.total, 0);
   const discountAmount = (subtotal * discount) / 100;
   const afterDiscount = subtotal - discountAmount;
   const gst = afterDiscount * 0.18;
   const total = afterDiscount + gst;
+
+  const columns = [
+    { header: "Customer", accessorKey: "customer", cell: (item: any) => item.customer?.name || "N/A" },
+    { header: "Barcode", accessorKey: "scanBarcode" },
+    { header: "Items", accessorKey: "items", cell: (item: any) => item.items?.length || 0 },
+    { header: "Date", accessorKey: "createdAt", cell: (item: any) => new Date(item.createdAt).toLocaleDateString() },
+  ];
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
@@ -132,44 +138,15 @@ export function Billing() {
       </div>
 
       {showHistory && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Billing History ({filteredBills.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <Input
-                  placeholder="Search bills..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Customer</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Items</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredBills.map((bill: any) => (
-                    <tr key={bill._id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4">{bill.customer?.name}</td>
-                      <td className="py-3 px-4">{bill.items?.length}</td>
-                      <td className="py-3 px-4">{new Date(bill.createdAt).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        <CommonDataTable
+          columns={columns}
+          data={billings}
+          pagination={pagination || { totalRecords: 0, currentPage: 1, totalPages: 0, limit: 10 }}
+          onPageChange={handlePageChange}
+          onSearchChange={setSearch}
+          loading={loading}
+          hideActions
+        />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -191,11 +168,6 @@ export function Billing() {
                     <option key={c._id} value={c._id}>{c.name} - {c.phone}</option>
                   ))}
                 </select>
-                {selectedCustomer && (
-                  <div className="text-sm text-gray-600">
-                    {selectedCustomer.name} - {selectedCustomer.phone}
-                  </div>
-                )}
               </div>
               <div className="space-y-2">
                 <Label>Scan Barcode</Label>

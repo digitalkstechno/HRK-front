@@ -1,19 +1,19 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Badge } from "../components/ui/badge";
 import { toast } from "sonner";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchAllStocks, createStock, updateStock, deleteStock } from "@/redux/slices/stockSlice";
+import { CommonDataTable } from "../components/ui/common-data-table";
 
 export function StockEntry() {
   const dispatch = useAppDispatch();
-  const { stocks, loading } = useAppSelector((state) => state.stock);
+  const { stocks, loading, pagination } = useAppSelector((state) => state.stock);
   const [isOpen, setIsOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<any>(null);
   const [formData, setFormData] = useState({ 
@@ -24,10 +24,15 @@ export function StockEntry() {
     totalAmount: 0, 
     status: "Pending" 
   });
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    dispatch(fetchAllStocks());
-  }, [dispatch]);
+    dispatch(fetchAllStocks({ page: 1, limit: 10, search }));
+  }, [dispatch, search]);
+
+  const handlePageChange = (page: number) => {
+    dispatch(fetchAllStocks({ page, limit: 10, search }));
+  };
 
   const handleAdd = () => {
     setEditingEntry(null);
@@ -65,21 +70,35 @@ export function StockEntry() {
         toast.success("Entry created!");
       }
       setIsOpen(false);
+      dispatch(fetchAllStocks({ page: pagination?.currentPage || 1, limit: 10, search }));
     } catch (err: any) {
       toast.error(err.message || "Failed to save entry");
     }
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await dispatch(deleteStock(id)).unwrap();
-      toast.success("Entry deleted!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete entry");
+    if (window.confirm("Are you sure you want to delete this entry?")) {
+      try {
+        await dispatch(deleteStock(id)).unwrap();
+        toast.success("Entry deleted!");
+        dispatch(fetchAllStocks({ page: pagination?.currentPage || 1, limit: 10, search }));
+      } catch (err: any) {
+        toast.error(err.message || "Failed to delete entry");
+      }
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  const columns = [
+    { header: "Date", accessorKey: "entryDate", cell: (item: any) => item.entryDate?.split('T')[0] },
+    { header: "Supplier", accessorKey: "supplier" },
+    { header: "Invoice", accessorKey: "invoiceNumber", cell: (item: any) => <span className="font-medium">{item.invoiceNumber}</span> },
+    { header: "Total", accessorKey: "totalAmount", cell: (item: any) => <span className="font-medium">₹{item.totalAmount}</span> },
+    { header: "Status", accessorKey: "status", cell: (item: any) => (
+      <Badge variant={item.status === "Completed" ? "default" : "secondary"}>
+        {item.status}
+      </Badge>
+    )},
+  ];
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
@@ -94,52 +113,16 @@ export function StockEntry() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All Stock Entries ({stocks.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Date</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Supplier</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Invoice</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Total</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Status</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stocks.map((entry: any) => (
-                  <tr key={entry._id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4">{entry.entryDate?.split('T')[0]}</td>
-                    <td className="py-3 px-4">{entry.supplier}</td>
-                    <td className="py-3 px-4 font-medium">{entry.invoiceNumber}</td>
-                    <td className="py-3 px-4 font-medium">₹{entry.totalAmount}</td>
-                    <td className="py-3 px-4">
-                      <Badge variant={entry.status === "Completed" ? "default" : "secondary"}>
-                        {entry.status}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center space-x-2">
-                        <Button onClick={() => handleEdit(entry)} variant="ghost" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button onClick={() => handleDelete(entry._id)} variant="ghost" size="sm">
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <CommonDataTable
+        columns={columns}
+        data={stocks}
+        pagination={pagination || { totalRecords: 0, currentPage: 1, totalPages: 0, limit: 10 }}
+        onPageChange={handlePageChange}
+        onSearchChange={setSearch}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        loading={loading}
+      />
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent>

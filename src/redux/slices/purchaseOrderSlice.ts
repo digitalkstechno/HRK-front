@@ -4,6 +4,12 @@ import api from '@/lib/axios';
 interface PurchaseOrderState {
   purchaseOrders: any[];
   currentPurchaseOrder: any;
+  pagination: {
+    totalRecords: number;
+    currentPage: number;
+    totalPages: number;
+    limit: number;
+  };
   loading: boolean;
   error: string | null;
 }
@@ -11,14 +17,25 @@ interface PurchaseOrderState {
 const initialState: PurchaseOrderState = {
   purchaseOrders: [],
   currentPurchaseOrder: null,
+  pagination: {
+    totalRecords: 0,
+    currentPage: 1,
+    totalPages: 0,
+    limit: 10,
+  },
   loading: false,
   error: null,
 };
 
-export const fetchAllPurchaseOrders = createAsyncThunk('purchaseOrder/fetchAll', async () => {
-  const response = await api.get('/purchaseorder');
-  return response.data.data;
-});
+export const fetchAllPurchaseOrders = createAsyncThunk(
+  'purchaseOrder/fetchAll',
+  async ({ page, limit, search }: { page?: number; limit?: number; search?: string } = {}) => {
+    const response = await api.get('/purchaseorder', {
+      params: { page, limit, search },
+    });
+    return response.data;
+  }
+);
 
 export const fetchPurchaseOrderById = createAsyncThunk('purchaseOrder/fetchById', async (id: string) => {
   const response = await api.get(`/purchaseorder/${id}`);
@@ -51,7 +68,8 @@ const purchaseOrderSlice = createSlice({
       })
       .addCase(fetchAllPurchaseOrders.fulfilled, (state, action) => {
         state.loading = false;
-        state.purchaseOrders = action.payload;
+        state.purchaseOrders = action.payload.data;
+        state.pagination = action.payload.pagination;
       })
       .addCase(fetchAllPurchaseOrders.rejected, (state, action) => {
         state.loading = false;
@@ -61,7 +79,7 @@ const purchaseOrderSlice = createSlice({
         state.currentPurchaseOrder = action.payload;
       })
       .addCase(createPurchaseOrder.fulfilled, (state, action) => {
-        state.purchaseOrders.push(action.payload);
+        state.purchaseOrders.unshift(action.payload);
       })
       .addCase(updatePurchaseOrder.fulfilled, (state, action) => {
         const index = state.purchaseOrders.findIndex((p) => p._id === action.payload._id);
