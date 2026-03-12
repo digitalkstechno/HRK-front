@@ -57,6 +57,11 @@ export const deleteCategoryMaster = createAsyncThunk('categoryMaster/delete', as
   return id;
 });
 
+export const fetchCategoryDropdown = createAsyncThunk('categoryMaster/fetchDropdown', async () => {
+  const response = await api.get('/categorymaster/dropdown');
+  return response.data.data;
+});
+
 const categoryMasterSlice = createSlice({
   name: 'categoryMaster',
   initialState,

@@ -1,159 +1,92 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchAllProducts, createProduct, updateProduct, deleteProduct } from "@/redux/slices/productSlice";
-import { fetchAllSizeMasters } from "@/redux/slices/sizeMasterSlice";
+import { fetchSizeDropdown } from "@/redux/slices/sizeMasterSlice";
+import { fetchCategoryDropdown } from "@/redux/slices/categoryMasterSlice";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
-import { Plus, Package } from "lucide-react";
+import { Plus, Package, X, Hash, Layers, Tag, IndianRupee } from "lucide-react";
 import { toast } from "sonner";
-import bwipjs from "bwip-js";
 import { CommonDataTable } from "../components/ui/common-data-table";
-
-function BarcodeImage({ barcode }: { barcode: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    if (barcode && canvasRef.current) {
-      try {
-        bwipjs.toCanvas(canvasRef.current, {
-          bcid: 'code128',
-          text: barcode,
-          scale: 1,
-          height: 6,
-          includetext: false,
-        });
-      } catch (e) {
-        console.error('Barcode error:', e);
-      }
-    }
-  }, [barcode]);
-
-  return <canvas ref={canvasRef} />;
-}
+import { Badge } from "../components/ui/badge";
 
 export function Products() {
   const dispatch = useAppDispatch();
   const { products, loading, pagination } = useAppSelector((state) => state.product);
-  const { sizeMasters } = useAppSelector((state) => state.sizeMaster);
+  
+  const [categories, setCategories] = useState<any[]>([]);
+  const [sizes, setSizes] = useState<any[]>([]);
+  
   const [isOpen, setIsOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [formData, setFormData] = useState({
-    name: "",
+    designNo: "",
     sku: "",
     category: "",
     purchasePrice: 0,
     salePrice: 0,
-    barcode: "",
   });
-  const [selectedSizes, setSelectedSizes] = useState<any>({});
+  const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [search, setSearch] = useState("");
-  const barcodeCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     dispatch(fetchAllProducts({ page: 1, limit: 10, search }));
-    dispatch(fetchAllSizeMasters({ page: 1, limit: 100 })); // Get all sizes for selection
+    
+    // Fetch dropdown data
+    dispatch(fetchCategoryDropdown()).unwrap().then(setCategories);
+    dispatch(fetchSizeDropdown()).unwrap().then(setSizes);
   }, [dispatch, search]);
-
-  useEffect(() => {
-    if (formData.barcode && barcodeCanvasRef.current) {
-      try {
-        bwipjs.toCanvas(barcodeCanvasRef.current, {
-          bcid: 'code128',
-          text: formData.barcode,
-          scale: 2,
-          height: 8,
-          includetext: false,
-        });
-      } catch (e) {
-        console.error('Barcode generation error:', e);
-      }
-    }
-  }, [formData.barcode]);
 
   const handlePageChange = (page: number) => {
     dispatch(fetchAllProducts({ page, limit: 10, search }));
   };
 
-  const generateSKU = (name: string) => {
-    const prefix = name.substring(0, 3).toUpperCase();
-    const timestamp = Date.now().toString().slice(-6);
-    const random = Math.floor(100 + Math.random() * 900);
-    return `${prefix}${timestamp}${random}`;
-  };
-
-  const generateBarcode = () => {
-    return Date.now().toString() + Math.floor(1000 + Math.random() * 9000).toString();
-  };
-
   const handleAdd = () => {
     setEditingProduct(null);
-    const barcode = generateBarcode();
     setFormData({
-      name: "",
+      designNo: "",
       sku: "",
       category: "",
       purchasePrice: 0,
       salePrice: 0,
-      barcode: barcode,
     });
-    setSelectedSizes({});
+    setSelectedSizes([]);
     setIsOpen(true);
   };
 
   const handleEdit = (product: any) => {
     setEditingProduct(product);
     setFormData({
-      name: product.name,
+      designNo: product.designNo,
       sku: product.sku,
-      category: product.category,
+      category: product.category?._id || product.category,
       purchasePrice: product.purchasePrice,
       salePrice: product.salePrice,
-      barcode: product.barcode,
     });
     
-    const sizesObj: any = {};
-    product.sizes?.forEach((s: any) => {
-      sizesObj[s.size?._id || s.size] = { checked: true, quantity: s.quantity };
-    });
-    setSelectedSizes(sizesObj);
+    setSelectedSizes(product.sizes?.map((s: any) => s._id || s) || []);
     setIsOpen(true);
   };
 
-  const handleNameChange = (name: string) => {
-    const sku = name ? generateSKU(name) : "";
-    const barcode = sku ? generateBarcode() : "";
-    setFormData({...formData, name, sku, barcode});
-  };
-
   const toggleSize = (sizeId: string) => {
-    setSelectedSizes({
-      ...selectedSizes,
-      [sizeId]: selectedSizes[sizeId]?.checked 
-        ? { ...selectedSizes[sizeId], checked: false }
-        : { checked: true, quantity: 0 }
-    });
-  };
-
-  const updateQuantity = (sizeId: string, quantity: number) => {
-    setSelectedSizes({
-      ...selectedSizes,
-      [sizeId]: { ...selectedSizes[sizeId], quantity }
-    });
+    if (selectedSizes.includes(sizeId)) {
+      setSelectedSizes(selectedSizes.filter(id => id !== sizeId));
+    } else {
+      setSelectedSizes([...selectedSizes, sizeId]);
+    }
   };
 
   const handleSave = async () => {
-    try {
-      const sizes = Object.keys(selectedSizes)
-        .filter(sizeId => selectedSizes[sizeId]?.checked)
-        .map(sizeId => ({
-          size: sizeId,
-          quantity: selectedSizes[sizeId].quantity || 0
-        }));
+    if (!formData.designNo || !formData.sku || !formData.category) {
+      toast.error("Please fill all required fields");
+      return;
+    }
 
-      const data = { ...formData, sizes };
+    try {
+      const data = { ...formData, sizes: selectedSizes };
 
       if (editingProduct) {
         await dispatch(updateProduct({ id: editingProduct._id, data })).unwrap();
@@ -182,179 +115,233 @@ export function Products() {
   };
 
   const columns = [
-    { header: "Product Name", accessorKey: "name", cell: (item: any) => (
-      <div className="font-semibold">{item.name}</div>
-    )},
-    { header: "SKU", accessorKey: "sku" },
-    { header: "Barcode", accessorKey: "barcode", cell: (item: any) => (
-      <div className="flex items-center gap-2">
-        <BarcodeImage barcode={item.barcode} />
+    { header: "DP CODE / DESIGN", accessorKey: "productCode", cell: (item: any) => (
+      <div className="flex flex-col gap-1">
+        <Badge variant="outline" className="w-fit font-mono font-bold text-indigo-700 bg-indigo-50/50 border-indigo-100">
+          {item.productCode}
+        </Badge>
+        <div className="text-[10px] text-gray-400 font-medium px-1 uppercase tracking-wider flex items-center gap-1">
+          <Hash className="w-2.5 h-2.5" /> {item.designNo}
+        </div>
       </div>
     )},
-    { header: "Category", accessorKey: "category" },
-    { header: "Purchase Price", accessorKey: "purchasePrice", cell: (item: any) => `₹${item.purchasePrice}` },
-    { header: "Sale Price", accessorKey: "salePrice", cell: (item: any) => (
-      <span className="font-medium">₹{item.salePrice}</span>
+    { header: "CATEGORY", accessorKey: "category", cell: (item: any) => (
+      <div className="flex items-center gap-2">
+         <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center border border-blue-100">
+            <Tag className="w-3.5 h-3.5 text-blue-500" />
+         </div>
+         <span className="text-sm font-semibold text-gray-700">
+            {item.category?.name || "Uncategorized"}
+         </span>
+      </div>
     )},
-    { header: "Sizes", accessorKey: "sizes", cell: (item: any) => (
+    { header: "PRICING", accessorKey: "salePrice", cell: (item: any) => (
+      <div className="flex flex-col">
+        <div className="flex items-center text-green-700 font-bold">
+            <IndianRupee className="w-3 h-3" />
+            <span>{item.salePrice}</span>
+        </div>
+        <div className="text-[10px] text-gray-400 flex items-center">
+            <span className="line-through mr-1 opacity-50">₹{item.purchasePrice}</span>
+            <span className="font-medium text-orange-600 bg-orange-50 px-1 rounded">Margin: ₹{item.salePrice - item.purchasePrice}</span>
+        </div>
+      </div>
+    )},
+    { header: "AVAILABLE SIZES", accessorKey: "sizes", cell: (item: any) => (
       item.sizes?.length > 0 ? (
-        <div className="text-xs">
+        <div className="flex flex-wrap gap-1 max-w-[180px]">
           {item.sizes.map((s: any, i: number) => (
-            <span key={i} className="inline-block bg-gray-100 px-2 py-1 rounded mr-1 mb-1">
-              {s.size?.name || s.size}: {s.quantity}
-            </span>
+            <Badge key={i} variant="secondary" className="text-[10px] px-1.5 py-0 bg-gray-50 text-gray-500 font-bold border border-gray-200">
+              {s.name || "N/A"}
+            </Badge>
           ))}
         </div>
       ) : (
-        <span className="text-gray-400 text-xs">No sizes</span>
+        <span className="text-gray-300 text-xs italic tracking-tight">No sizes mapped</span>
       )
     )},
   ];
 
   return (
-    <div className="p-4 lg:p-6 space-y-6">
+    <div className="p-4 lg:p-6 space-y-6 bg-gray-50/50 min-h-full">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-600 mt-1">Manage product inventory</p>
+        <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-gray-100">
+                <Package className="w-7 h-7 text-indigo-600" />
+            </div>
+            <div>
+                <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Product Master</h1>
+                <p className="text-gray-400 text-sm font-medium">Design & SKU Inventory Distribution</p>
+            </div>
         </div>
-        <Button onClick={handleAdd} className="bg-indigo-600 hover:bg-indigo-700">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Product
+        <Button onClick={handleAdd} className="bg-indigo-600 hover:bg-indigo-700 h-12 px-6 rounded-xl shadow-lg shadow-indigo-100 font-bold transition-all hover:translate-y-[-2px]">
+          <Plus className="w-5 h-5 mr-2" />
+          Create New Configuration
         </Button>
       </div>
 
-      <CommonDataTable
-        columns={columns}
-        data={products}
-        pagination={pagination}
-        onPageChange={handlePageChange}
-        onSearchChange={setSearch}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        loading={loading}
-      />
+      <div className="bg-transparent">
+        <CommonDataTable
+          columns={columns}
+          data={products}
+          pagination={pagination}
+          onPageChange={handlePageChange}
+          onSearchChange={setSearch}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          loading={loading}
+        />
+      </div>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="w-[90vw] max-w-[1200px] max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader className="pb-4 border-b">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                <Package className="w-5 h-5 text-indigo-600" />
+        <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-hidden rounded-[2rem] p-0 border border-gray-100 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.1)] flex flex-col">
+          <DialogHeader className="p-8 pb-6 bg-gradient-to-br from-indigo-50/80 via-white to-white border-b border-gray-100">
+            <div className="flex items-center gap-5">
+              <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center shadow-md border border-indigo-100">
+                <Layers className="w-8 h-8 text-indigo-600" />
               </div>
               <div>
-                <DialogTitle className="text-2xl">{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
-                <p className="text-sm text-gray-500 mt-1">Fill in the product details below</p>
+                <DialogTitle className="text-3xl font-black text-gray-900 tracking-tight">{editingProduct ? "Edit Configuration" : "New Configuration"}</DialogTitle>
+                <div className="flex items-center gap-2 mt-1">
+                    <p className="text-sm text-gray-400 font-medium tracking-wide">Product Details & Inventory Map</p>
+                    <div className="h-1 w-1 rounded-full bg-gray-200"></div>
+                     <Badge variant="outline" className="text-[10px] font-bold text-indigo-400 uppercase">Phase 1</Badge>
+                </div>
               </div>
             </div>
           </DialogHeader>
           
-          <div className="flex-1 overflow-y-auto py-6 px-1">
-            <div className="space-y-6">
-              <div className="bg-gray-50 rounded-lg p-6 space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Product Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Product Name <span className="text-red-500">*</span></Label>
+          <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
+            <section className="space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-black">1</div>
+                <h3 className="text-sm font-black uppercase tracking-widest text-gray-400">Identity & SKU</h3>
+                <div className="h-px flex-1 bg-gradient-to-r from-gray-100 to-transparent"></div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-2">
+                <div className="space-y-3">
+                  <Label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Design Reference</Label>
+                  <div className="relative group">
                     <Input 
-                      value={formData.name} 
-                      onChange={(e) => handleNameChange(e.target.value)}
-                      placeholder="Enter product name"
-                      className="h-11"
+                        value={formData.designNo} 
+                        onChange={(e) => setFormData({...formData, designNo: e.target.value})}
+                        placeholder="ENTER DESIGN (e.g. DP01)"
+                        className="h-14 bg-gray-50/50 border-gray-100 focus:bg-white focus:ring-4 focus:ring-indigo-100 rounded-2xl transition-all font-bold placeholder:text-gray-300 uppercase"
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">SKU <span className="text-xs text-gray-500">(Auto-generated)</span></Label>
-                    <Input value={formData.sku} disabled className="bg-gray-100 h-11 font-mono" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Barcode <span className="text-xs text-gray-500">(Auto-generated)</span></Label>
-                    <div className="flex gap-2">
-                      <Input value={formData.barcode} disabled className="bg-gray-100 h-11 font-mono flex-1" />
-                      <div className="flex items-center justify-center border-2 border-gray-300 rounded-lg px-2 py-1 bg-white">
-                        <canvas ref={barcodeCanvasRef} style={{maxWidth: '80px', height: 'auto'}} />
-                      </div>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-20 group-focus-within:opacity-100 transition-opacity">
+                        <Hash className="w-5 h-5 text-indigo-600" />
                     </div>
                   </div>
                 </div>
+                <div className="space-y-3">
+                  <Label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Merchant SKU</Label>
+                  <Input 
+                    value={formData.sku} 
+                    onChange={(e) => setFormData({...formData, sku: e.target.value})}
+                    placeholder="ENTER SKU NAME"
+                    className="h-14 bg-gray-50/50 border-gray-100 focus:bg-white focus:ring-4 focus:ring-indigo-100 rounded-2xl transition-all font-mono font-bold placeholder:text-gray-300 uppercase"
+                  />
+                </div>
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-6 space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Pricing & Category</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Category <span className="text-red-500">*</span></Label>
-                    <Input 
-                      value={formData.category} 
-                      onChange={(e) => setFormData({...formData, category: e.target.value})}
-                      placeholder="e.g., Shirts, Sarees"
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Purchase Price <span className="text-red-500">*</span></Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-2">
+                <div className="space-y-3">
+                  <Label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Primary Collection</Label>
+                  <select
+                    className="w-full h-14 border border-gray-100 rounded-2xl px-4 bg-gray-50/50 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all cursor-pointer font-bold text-gray-700 outline-none appearance-none"
+                    value={formData.category}
+                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                  >
+                    <option value="" className="text-gray-300">SELECT CATEGORY</option>
+                    {categories.map((cat: any) => (
+                      <option key={cat._id} value={cat._id}>{cat.name.toUpperCase()}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-3">
+                   <Label className="text-xs font-black text-indigo-300 uppercase tracking-widest ml-1">Unique Product Handle</Label>
+                   <div className="h-14 flex items-center justify-between px-6 bg-indigo-50/30 border border-indigo-100 rounded-2xl text-indigo-600 font-black tracking-tighter text-lg shadow-inner">
+                        <span>{formData.designNo || "..."}</span>
+                        <span className="text-indigo-200">-</span>
+                        <span>{formData.sku || "..."}</span>
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-indigo-100">
+                         <Hash className="w-4 h-4" />
+                      </div>
+                   </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-6">
+               <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-black">2</div>
+                <h3 className="text-sm font-black uppercase tracking-widest text-gray-400">Valuation & Pricing</h3>
+                <div className="h-px flex-1 bg-gradient-to-r from-gray-100 to-transparent"></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-2">
+                <div className="space-y-3">
+                  <Label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Landing Cost (₹)</Label>
+                  <div className="relative group">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-black">₹</span>
                     <Input 
                       type="number" 
                       value={formData.purchasePrice} 
                       onChange={(e) => setFormData({...formData, purchasePrice: +e.target.value})}
-                      className="h-11"
+                      className="h-14 pl-10 bg-gray-50/50 border-gray-100 focus:bg-white rounded-2xl transition-all font-black text-gray-700 placeholder:text-gray-300"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Sale Price <span className="text-red-500">*</span></Label>
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-xs font-black text-gray-500 uppercase tracking-widest ml-1">Selling Price (₹)</Label>
+                  <div className="relative group">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400 font-black">₹</span>
                     <Input 
                       type="number" 
                       value={formData.salePrice} 
                       onChange={(e) => setFormData({...formData, salePrice: +e.target.value})}
-                      className="h-11"
+                      className="h-14 pl-10 bg-indigo-50/30 border-indigo-100 focus:bg-white rounded-2xl transition-all font-black text-indigo-700 text-xl"
                     />
                   </div>
                 </div>
               </div>
+            </section>
 
-              <div className="bg-gray-50 rounded-lg p-6 space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Size & Stock Management</h3>
-                <div className="bg-white border rounded-lg overflow-hidden">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="py-2 px-4 text-left">Select</th>
-                        <th className="py-2 px-4 text-left">Size Name</th>
-                        <th className="py-2 px-4 text-left">Stock Quantity</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sizeMasters.map((size: any) => (
-                        <tr key={size._id} className="border-t">
-                          <td className="py-2 px-4">
-                            <input
-                              type="checkbox"
-                              checked={selectedSizes[size._id]?.checked || false}
-                              onChange={() => toggleSize(size._id)}
-                            />
-                          </td>
-                          <td className="py-2 px-4">{size.name}</td>
-                          <td className="py-2 px-4">
-                            <Input
-                              type="number"
-                              disabled={!selectedSizes[size._id]?.checked}
-                              value={selectedSizes[size._id]?.quantity || 0}
-                              onChange={(e) => updateQuantity(size._id, +e.target.value)}
-                              className="h-8 max-w-[100px]"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            <section className="space-y-6 pb-4">
+              <div className="flex items-center gap-4">
+                <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-black">3</div>
+                <h3 className="text-sm font-black uppercase tracking-widest text-gray-400">Size Distribution</h3>
+                <div className="h-px flex-1 bg-gradient-to-r from-gray-100 to-transparent"></div>
               </div>
-            </div>
+              <div className="flex flex-wrap gap-4 p-6 border border-gray-100 rounded-[2rem] bg-gray-50/30">
+                {sizes.map((size: any) => (
+                  <button
+                    key={size._id}
+                    type="button"
+                    onClick={() => toggleSize(size._id)}
+                    className={`h-16 px-8 rounded-2xl text-sm font-black transition-all flex items-center gap-3 border shadow-sm ${
+                      selectedSizes.includes(size._id)
+                        ? "bg-indigo-600 text-white border-indigo-500 shadow-indigo-100 scale-[1.05]"
+                        : "bg-white text-gray-500 border-gray-100 hover:border-indigo-200 hover:text-indigo-600 scale-100"
+                    }`}
+                  >
+                    {size.name.toUpperCase()}
+                    {selectedSizes.includes(size._id) && <div className="p-1 bg-white/20 rounded-full"><X className="w-3 h-3 text-white" /></div>}
+                  </button>
+                ))}
+                {sizes.length === 0 && (
+                    <div className="w-full py-8 text-center text-gray-300 font-bold italic border-2 border-dashed border-gray-100 rounded-3xl">
+                        NO SIZES DEFINED IN SYSTEM
+                    </div>
+                )}
+              </div>
+            </section>
           </div>
-          <div className="pt-4 border-t flex gap-3">
-            <Button onClick={() => setIsOpen(false)} variant="outline" className="flex-1">Cancel</Button>
-            <Button onClick={handleSave} className="flex-1 bg-indigo-600">
-              {editingProduct ? "Update Product" : "Create Product"}
+
+          <div className="p-8 bg-white border-t border-gray-100 flex gap-6 sticky bottom-0 z-10">
+            <Button onClick={() => setIsOpen(false)} variant="ghost" className="flex-1 h-14 rounded-2xl text-gray-400 font-black uppercase tracking-widest hover:bg-gray-50 hover:text-gray-900 transition-all">Dismiss</Button>
+            <Button onClick={handleSave} className="flex-[2] h-14 bg-indigo-600 hover:bg-indigo-700 shadow-2xl shadow-indigo-200 rounded-2xl font-black uppercase tracking-widest transition-all hover:translate-y-[-4px] active:translate-y-[0px]">
+              {editingProduct ? "Sync Changes" : "Commit Configuration"}
             </Button>
           </div>
         </DialogContent>

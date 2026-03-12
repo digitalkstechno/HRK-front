@@ -57,6 +57,11 @@ export const deleteSizeMaster = createAsyncThunk('sizeMaster/delete', async (id:
   return id;
 });
 
+export const fetchSizeDropdown = createAsyncThunk('sizeMaster/fetchDropdown', async () => {
+  const response = await api.get('/sizemaster/dropdown');
+  return response.data.data;
+});
+
 const sizeMasterSlice = createSlice({
   name: 'sizeMaster',
   initialState,

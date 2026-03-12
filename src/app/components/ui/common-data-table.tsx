@@ -1,5 +1,3 @@
-"use client";
-
 import {
   Table,
   TableBody,
@@ -9,7 +7,7 @@ import {
   TableRow,
 } from "./table";
 import { Button } from "./button";
-import { Edit, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Edit, Trash2, ChevronLeft, ChevronRight, Search, Loader2 } from "lucide-react";
 import { Input } from "./input";
 
 interface Column {
@@ -45,103 +43,127 @@ export function CommonDataTable({
   loading,
 }: CommonDataTableProps) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-1">
       <div className="flex items-center justify-between gap-4">
-        <Input
-          placeholder="Search..."
-          className="max-w-sm"
-          onChange={(e) => onSearchChange(e.target.value)}
-        />
-      </div>
-
-      <div className="rounded-md border bg-white">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[80px]">Sr No.</TableHead>
-              {columns.map((column, index) => (
-                <TableHead key={index}>{column.header}</TableHead>
-              ))}
-              {(onEdit || onDelete) && <TableHead className="text-right">Actions</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={columns.length + 2} className="h-24 text-center">
-                  Loading...
-                </TableCell>
-              </TableRow>
-            ) : data.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={columns.length + 2} className="h-24 text-center">
-                  No results found.
-                </TableCell>
-              </TableRow>
-            ) : (
-              data.map((item, index) => (
-                <TableRow key={item._id}>
-                  <TableCell>
-                    {(pagination.currentPage - 1) * pagination.limit + index + 1}
-                  </TableCell>
-                  {columns.map((column, colIndex) => (
-                    <TableCell key={colIndex}>
-                      {column.cell ? column.cell(item) : item[column.accessorKey]}
-                    </TableCell>
-                  ))}
-                  {(onEdit || onDelete) && (
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        {onEdit && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onEdit(item)}
-                          >
-                            <Edit className="w-4 h-4 text-blue-600" />
-                          </Button>
-                        )}
-                        {onDelete && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onDelete(item._id)}
-                          >
-                            <Trash2 className="w-4 h-4 text-red-600" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      <div className="flex items-center justify-between px-2">
-        <div className="text-sm text-gray-500">
-          Showing {data.length} of {pagination.totalRecords} records
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Quick search records..."
+            className="pl-10 h-10 border-gray-200 focus-visible:ring-indigo-500 rounded-lg shadow-sm"
+            onChange={(e) => onSearchChange(e.target.value)}
+          />
         </div>
-        <div className="flex items-center space-x-2">
+      </div>
+
+      <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-gray-50/50">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-[80px] font-bold text-gray-600">SR.</TableHead>
+                {columns.map((column, index) => (
+                  <TableHead key={index} className="font-bold text-gray-600">
+                    {column.header}
+                  </TableHead>
+                ))}
+                {(onEdit || onDelete) && <TableHead className="text-right font-bold text-gray-600">ACTIONS</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={columns.length + 2} className="h-48 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2 text-gray-400">
+                      <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                      <span className="text-sm font-medium">Fetching data...</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : data.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={columns.length + 2} className="h-48 text-center text-gray-500">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                       <Search className="h-10 w-10 text-gray-200" />
+                       <p className="font-medium text-lg">No records found</p>
+                       <p className="text-sm text-gray-400">Try adjusting your search filters</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                data.map((item, index) => (
+                  <TableRow key={item._id} className="hover:bg-indigo-50/30 transition-colors">
+                    <TableCell className="font-medium text-gray-500">
+                      {(pagination.currentPage - 1) * pagination.limit + index + 1}
+                    </TableCell>
+                    {columns.map((column, colIndex) => (
+                      <TableCell key={colIndex} className="py-4">
+                        {column.cell ? column.cell(item) : item[column.accessorKey]}
+                      </TableCell>
+                    ))}
+                    {(onEdit || onDelete) && (
+                      <TableCell className="text-right py-4 px-6">
+                        <div className="flex justify-end gap-1">
+                          {onEdit && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onEdit(item)}
+                              className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {onDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onDelete(item._id)}
+                              className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between py-2 px-1">
+        <div className="text-sm font-medium text-gray-400">
+          Showing <span className="text-gray-900">{data.length}</span> of <span className="text-gray-900">{pagination.totalRecords}</span> entries
+        </div>
+        <div className="flex items-center space-x-3">
           <Button
             variant="outline"
             size="sm"
             onClick={() => onPageChange(pagination.currentPage - 1)}
             disabled={pagination.currentPage === 1 || loading}
+            className="h-9 rounded-lg border-gray-200 hover:bg-gray-50 disabled:opacity-50"
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
-            Previous
+            Prev
           </Button>
-          <div className="text-sm font-medium">
-            Page {pagination.currentPage} of {pagination.totalPages || 1}
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-bold text-indigo-600 bg-indigo-50 w-8 h-8 flex items-center justify-center rounded-lg">
+                {pagination.currentPage}
+            </span>
+            <span className="text-sm text-gray-400 px-1">of</span>
+            <span className="text-sm font-medium text-gray-600">
+                {pagination.totalPages || 1}
+            </span>
           </div>
           <Button
             variant="outline"
             size="sm"
             onClick={() => onPageChange(pagination.currentPage + 1)}
             disabled={pagination.currentPage === pagination.totalPages || loading}
+            className="h-9 rounded-lg border-gray-200 hover:bg-gray-50 disabled:opacity-50"
           >
             Next
             <ChevronRight className="h-4 w-4 ml-1" />
