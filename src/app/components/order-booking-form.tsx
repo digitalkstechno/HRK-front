@@ -36,7 +36,7 @@ export function OrderBookingForm({ id, initialData }: { id?: string; initialData
   }));
 
   const productOptions = products.map((p: any) => ({
-    label: `${p.productCode} (${p.category?.name}) - Sizes: [${p.sizes?.map((s: any) => s.name).join(", ")}]`,
+    label: `${p.productCode} (${p.category?.name}) - Sizes: [${p.sizes?.map((s: any) => s.name).join(", ")}] - Sets: ${p.availableSets || 0} - Pcs: ${p.totalInStock || 0}`,
     value: p._id,
   }));
 
@@ -196,6 +196,12 @@ export function OrderBookingForm({ id, initialData }: { id?: string; initialData
                       placeholder="Search product..."
                       disabled={!!id}
                     />
+                    {item.product && (
+                      <div className="text-[10px] text-gray-500 mt-1 pl-1 font-medium">
+                        Available Sets: <span className="text-indigo-600 font-bold">{products.find((p: any) => p._id === item.product)?.availableSets || 0}</span> | 
+                        Available Pcs: <span className="text-indigo-600 font-bold">{products.find((p: any) => p._id === item.product)?.totalInStock || 0}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex-1">
